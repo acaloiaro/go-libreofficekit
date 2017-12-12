@@ -75,6 +75,8 @@ func (office *Office) LoadDocument(path string) (*Document, error) {
 	document := new(Document)
 	cPath := C.CString(path)
 	defer C.free(unsafe.Pointer(cPath))
+	office.Mutex.Lock()
+	defer office.Mutex.Unlock()
 	handle := C.document_load(office.handle, cPath)
 	if handle == nil {
 		return nil, fmt.Errorf("Failed to load document")
