@@ -58,6 +58,30 @@ func NewOffice(path string) (*Office, error) {
 
 }
 
+// NewOfficeWithPath returns new Office or error if LibreOfficeKit fails to load
+// required libs (actually, when libreofficekit-dev package isn't installed or path is invalid)
+// profile path should already exist
+func NewOfficeWithProfile(path, profile string) (*Office, error) {
+	office := new(Office)
+
+	cPath := C.CString(path)
+	defer C.free(unsafe.Pointer(cPath))
+
+	cProfilePath := C.CString(profile)
+	defer C.free(unsafe.Pointer(cProfilePath))
+
+	lokit := C.lok_init_2(cPath, cProfilePath)
+	if lokit == nil {
+		return nil, fmt.Errorf("Failed to initialize LibreOfficeKit with path: '%s'", path)
+	}
+
+	office.handle = lokit
+	office.Mutex = &sync.Mutex{}
+
+	return office, nil
+
+}
+
 // Close destroys C LibreOfficeKit instance
 func (office *Office) Close() {
 	C.destroy_office(office.handle)
