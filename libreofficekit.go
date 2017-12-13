@@ -89,6 +89,8 @@ func (office *Office) Close() {
 
 // GetError returns last happened error message in human-readable format
 func (office *Office) GetError() string {
+	office.Mutex.Lock()
+	defer office.Mutex.Unlock()
 	message := C.get_error(office.handle)
 	return C.GoString(message)
 }
