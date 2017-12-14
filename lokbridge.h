@@ -11,10 +11,6 @@ char* get_error(LibreOfficeKit* pThis) {
     return pThis->pClass->getError(pThis);
 };
 
-void free_error(LibreOfficeKit* pThis, char* message) {
-    return pThis->pClass->freeError(message);
-}
-
 char* get_filter_types(LibreOfficeKit* pThis) {
     return pThis->pClass->getFilterTypes(pThis);
 };
@@ -64,10 +60,6 @@ int create_view(LibreOfficeKitDocument* pThis) {
 
 int get_view(LibreOfficeKitDocument* pThis) {
     return pThis->pClass->getView(pThis);
-};
-
-int get_views_count(LibreOfficeKitDocument* pThis) {
-    return pThis->pClass->getViewsCount(pThis);
 };
 
 void paint_tile(LibreOfficeKitDocument* pThis, unsigned char* pBuffer, const int nCanvasWidth, const int nCanvasHeight, const int nTilePosX, const int nTilePosY, const int nTileWidth, const int nTileHeight) {
