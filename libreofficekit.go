@@ -124,31 +124,34 @@ func (office *Office) LoadDocumentSafe(path string, deadlineSeconds time.Duratio
 	cPath := C.CString(path)
 	defer C.free(unsafe.Pointer(cPath))
 
+	office.Mutex.Lock()
+	defer office.Mutex.Unlock()
+
 	// Allow Go to silently receive and ignore SIGTERMS due to exceeded deadlines in C
 	signalChannel := make(chan os.Signal)
 	signal.Notify(signalChannel, os.Interrupt, syscall.SIGTERM)
-	defer signal.Reset(os.Interrupt)
+
+	handle := C.document_load_safe(office.handle, cPath, C.int(int(deadlineSeconds.Seconds())))
 
 	go func() {
 		select {
+		case <-signalChannel:
+			close(signalChannel)
+			signal.Reset()
+			return
 		case <-time.After(deadlineSeconds):
 			close(signalChannel)
+			signal.Reset()
 			return
 		}
 	}()
 
-	office.Mutex.Lock()
-	defer office.Mutex.Unlock()
-
-	handle := C.document_load_safe(office.handle, cPath, C.int(int(deadlineSeconds.Seconds())))
-
-	if handle == nil {
+	if handle != nil {
+		document.handle = handle
+		return document, nil
+	} else {
 		return nil, fmt.Errorf("Failed to load document")
 	}
-
-	document.handle = handle
-
-	return document, nil
 }
 
 func (office *Office) GetFilters() string {
