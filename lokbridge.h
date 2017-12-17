@@ -7,14 +7,6 @@
 #include "LibreOfficeKit/LibreOfficeKitInit.h"
 #include "LibreOfficeKit/LibreOfficeKit.h"
 
-pthread_t work_thread;
-
-struct LoadParams {
-   LibreOfficeKit* kit;
-   const char* url;
-   LibreOfficeKitDocument* document;
-};
-
 void destroy_office(LibreOfficeKit* pThis) {
     return pThis->pClass->destroy(pThis);
 };
@@ -30,38 +22,6 @@ char* get_filter_types(LibreOfficeKit* pThis) {
 LibreOfficeKitDocument* document_load(LibreOfficeKit* pThis, const char* pURL) {
     return pThis->pClass->documentLoad(pThis, pURL);
 };
-
-void* document_loader(void *p_ptr) {
-    struct LoadParams *p = (struct LoadParams *)p_ptr; // This memory will be leaked any time thread are killed. Fix
-    p->document = document_load(p->kit, p->url);
-}
-
-LibreOfficeKitDocument* document_load_safe(LibreOfficeKit* pThis, const char* pURL, int deadline_seconds)
-{
-    struct LoadParams params;
-    params.kit = pThis;
-    params.url = pURL;
-
-    if(pthread_create(&work_thread, NULL, document_loader, &params)) {
-        fprintf(stderr, "Error creating thread\n");
-        return NULL;
-    }
-
-    struct timespec ts;
-    if (clock_gettime(CLOCK_REALTIME, &ts) == -1) {
-       return NULL;
-    }
-    ts.tv_sec += deadline_seconds;
-
-    int s = pthread_timedjoin_np(work_thread, NULL, &ts);
-    if (s != 0) {
-        pthread_kill(work_thread, SIGTERM);
-        return NULL;
-    }
-
-    return params.document;
-};
-
 
 void destroy_document(LibreOfficeKitDocument* pThis) {
     return pThis->pClass->destroy(pThis);

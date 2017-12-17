@@ -13,10 +13,10 @@ import (
 	"strings"
 	"sync"
 	"unsafe"
-	"os"
-	"os/signal"
-	"syscall"
 	"time"
+
+	"github.com/acaloiaro/go-pthreads"
+	"errors"
 )
 
 // TwipsToPixels converts given twips to pixels with given dpi
@@ -106,9 +106,6 @@ func (office *Office) LoadDocument(path string) (*Document, error) {
 	cPath := C.CString(path)
 	defer C.free(unsafe.Pointer(cPath))
 
-	office.Mutex.Lock()
-	defer office.Mutex.Unlock()
-
 	handle := C.document_load(office.handle, cPath)
 	if handle == nil {
 		return nil, fmt.Errorf("Failed to load document")
@@ -119,38 +116,37 @@ func (office *Office) LoadDocument(path string) (*Document, error) {
 
 // LoadDocument return Document or error, if LibreOffice fails to open document at provided path.
 // Actual error message can be retrieved by office.GetError method
-func (office *Office) LoadDocumentSafe(path string, deadlineSeconds time.Duration) (*Document, error) {
+func (office *Office) LoadDocumentSafe(path string, deadline time.Duration) (*Document, error) {
 	document := new(Document)
+	var err error
+
 	cPath := C.CString(path)
 	defer C.free(unsafe.Pointer(cPath))
+
+	done := make(chan int, 1)
 
 	office.Mutex.Lock()
 	defer office.Mutex.Unlock()
 
-	// Allow Go to silently receive and ignore SIGTERMS due to exceeded deadlines in C
-	signalChannel := make(chan os.Signal)
-	signal.Notify(signalChannel, os.Interrupt, syscall.SIGTERM)
-
-	handle := C.document_load_safe(office.handle, cPath, C.int(int(deadlineSeconds.Seconds())))
-
-	go func() {
-		select {
-		case <-signalChannel:
-			close(signalChannel)
-			signal.Reset()
-			return
-		case <-time.After(deadlineSeconds):
-			close(signalChannel)
-			signal.Reset()
-			return
+	thread := pthread.Create(func() {
+		handle := C.document_load(office.handle, cPath)
+		if handle != nil {
+			document.handle = handle
+		} else {
+			err = fmt.Errorf("Failed to load document")
 		}
-	}()
 
-	if handle != nil {
-		document.handle = handle
+		done <- 1
+		close(done)
+	})
+
+	select {
+	case<-time.After(deadline):
+		thread.Kill()
+		return nil, errors.New("Deadline exceeded.")
+	case<-done:
+		thread.Kill()
 		return document, nil
-	} else {
-		return nil, fmt.Errorf("Failed to load document")
 	}
 }
 

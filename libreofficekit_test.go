@@ -63,7 +63,7 @@ func TestSuccessLoadDocumentSafe(t *testing.T) {
 
 func TestSuccessLoadDocumentSafeFailure(t *testing.T) {
 	office, _ := NewOffice(DefaultLibreOfficePath)
-	_, err := office.LoadDocumentSafe(SampleDocument, time.Duration(0 * time.Second))
+	_, err := office.LoadDocumentSafe(SampleDocument, time.Duration(100 * time.Millisecond))
 
 	if err == nil {
 		t.Fail()
