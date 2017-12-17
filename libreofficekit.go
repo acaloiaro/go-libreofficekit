@@ -2,7 +2,7 @@ package libreofficekit
 
 /*
 #cgo CFLAGS: -I ./ -D LOK_USE_UNSTABLE_API
-#cgo LDFLAGS: -ldl
+#cgo LDFLAGS: -ldl -lpthread
 #include <lokbridge.h>
 */
 import "C"
@@ -13,6 +13,10 @@ import (
 	"strings"
 	"sync"
 	"unsafe"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 )
 
 // TwipsToPixels converts given twips to pixels with given dpi
@@ -101,13 +105,49 @@ func (office *Office) LoadDocument(path string) (*Document, error) {
 	document := new(Document)
 	cPath := C.CString(path)
 	defer C.free(unsafe.Pointer(cPath))
+
 	office.Mutex.Lock()
 	defer office.Mutex.Unlock()
+
 	handle := C.document_load(office.handle, cPath)
 	if handle == nil {
 		return nil, fmt.Errorf("Failed to load document")
 	}
 	document.handle = handle
+	return document, nil
+}
+
+// LoadDocument return Document or error, if LibreOffice fails to open document at provided path.
+// Actual error message can be retrieved by office.GetError method
+func (office *Office) LoadDocumentSafe(path string, deadlineSeconds time.Duration) (*Document, error) {
+	document := new(Document)
+	cPath := C.CString(path)
+	defer C.free(unsafe.Pointer(cPath))
+
+	// Allow Go to silently receive and ignore SIGTERMS due to exceeded deadlines in C
+	signalChannel := make(chan os.Signal)
+	signal.Notify(signalChannel, os.Interrupt, syscall.SIGTERM)
+	defer signal.Reset(os.Interrupt)
+
+	go func() {
+		select {
+		case <-time.After(deadlineSeconds):
+			close(signalChannel)
+			return
+		}
+	}()
+
+	office.Mutex.Lock()
+	defer office.Mutex.Unlock()
+
+	handle := C.document_load_safe(office.handle, cPath, C.int(int(deadlineSeconds.Seconds())))
+
+	if handle == nil {
+		return nil, fmt.Errorf("Failed to load document")
+	}
+
+	document.handle = handle
+
 	return document, nil
 }
 
