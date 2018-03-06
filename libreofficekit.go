@@ -84,6 +84,10 @@ func NewOfficeWithProfile(path, profile string) (*Office, error) {
 
 // Close destroys C LibreOfficeKit instance
 func (office *Office) Close() {
+	if office.handle == nil {
+		return
+	}
+
 	C.destroy_office(office.handle)
 }
 
